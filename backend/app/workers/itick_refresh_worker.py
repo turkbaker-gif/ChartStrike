@@ -1,0 +1,120 @@
+import time
+from datetime import datetime
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.db.session import SessionLocal
+from app.db.models import LatestQuote, Candle
+from app.services.market.itick_client import ITickClient
+from app.services.watchlist.watchlist_service import WatchlistService
+
+
+class ITickRefreshWorker:
+    @staticmethod
+    def refresh_quotes(db: Session, symbols: list[str]) -> None:
+        """Fetch latest quotes for all symbols and store in latest_quotes table."""
+        for symbol in symbols:
+            quote = ITickClient.get_quote(symbol)
+            if not quote:
+                print(f"Failed to fetch quote for {symbol}")
+                continue
+
+            existing = db.query(LatestQuote).filter(LatestQuote.symbol == symbol).first()
+            if existing:
+                existing.price = quote["price"]
+                existing.open = quote.get("open")
+                existing.high = quote.get("high")
+                existing.low = quote.get("low")
+                existing.previous_close = quote.get("previous_close")
+                existing.change = quote.get("change")
+                existing.percent_change = quote.get("percent_change")
+                existing.volume = quote.get("volume")
+                existing.turnover = quote.get("turnover")
+                existing.timestamp = quote.get("timestamp")
+                existing.updated_at = datetime.utcnow()
+            else:
+                new_quote = LatestQuote(
+                    symbol=symbol,
+                    price=quote["price"],
+                    open=quote.get("open"),
+                    high=quote.get("high"),
+                    low=quote.get("low"),
+                    previous_close=quote.get("previous_close"),
+                    change=quote.get("change"),
+                    percent_change=quote.get("percent_change"),
+                    volume=quote.get("volume"),
+                    turnover=quote.get("turnover"),
+                    timestamp=quote.get("timestamp"),
+                )
+                db.add(new_quote)
+            db.commit()
+            print(f"Quote updated for {symbol}: {quote['price']}")
+
+    @staticmethod
+    def refresh_candles(db: Session, symbols: list[str], interval: str = "1m", limit: int = 100) -> None:
+        """Fetch recent candles for all symbols and store in candles table."""
+        for symbol in symbols:
+            try:
+                candles = ITickClient.get_time_series(symbol=symbol, interval=interval, limit=limit)
+                if not candles:
+                    print(f"No candle data for {symbol}")
+                    continue
+            except Exception as e:
+                print(f"Error fetching candles for {symbol}: {e}")
+                continue
+
+            for c in candles:
+                try:
+                    ts = datetime.fromisoformat(c["datetime"])
+                except Exception as e:
+                    print(f"Error parsing datetime for {symbol}: {c.get('datetime')} - {e}")
+                    continue
+
+                existing = db.query(Candle).filter(
+                    Candle.symbol == symbol,
+                    Candle.timeframe == interval,
+                    Candle.ts == ts,
+                ).first()
+                if existing:
+                    continue
+
+                candle = Candle(
+                    symbol=symbol,
+                    timeframe=interval,
+                    ts=ts,
+                    open=c["open"],
+                    high=c["high"],
+                    low=c["low"],
+                    close=c["close"],
+                    volume=c["volume"],
+                )
+                db.add(candle)
+            db.commit()
+            print(f"Candles refreshed for {symbol} ({len(candles)} records)")
+
+    @staticmethod
+    def run_forever():
+        print("Starting iTick Refresh Worker (rate-limited to 5 calls/min)")
+        while True:
+            db = SessionLocal()
+            try:
+                symbols = WatchlistService.get_active_symbols(db, fallback_to_env=True)
+                if not symbols:
+                    print("No symbols in watchlist. Waiting...")
+                    time.sleep(60)
+                    continue
+
+                print(f"Refresh cycle started at {datetime.utcnow()} for {len(symbols)} symbols")
+                ITickRefreshWorker.refresh_quotes(db, symbols)
+                ITickRefreshWorker.refresh_candles(db, symbols, interval="1m", limit=50)
+                print(f"Refresh cycle completed at {datetime.utcnow()}")
+            except Exception as e:
+                print(f"iTick refresh worker error: {e}")
+            finally:
+                db.close()
+
+            time.sleep(120)
+
+
+if __name__ == "__main__":
+    ITickRefreshWorker.run_forever()

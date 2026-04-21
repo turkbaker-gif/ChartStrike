@@ -1,0 +1,56 @@
+from __future__ import annotations
+
+import time
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.db.session import SessionLocal
+from app.services.market.twelvedata_client import TwelveDataClient
+from app.services.market.candle_store import CandleStore
+
+
+class MarketDataWorker:
+    def __init__(self) -> None:
+        self.client = TwelveDataClient()
+
+    def fetch_and_store_symbol(self, db: Session, symbol: str) -> dict:
+        #payload = self.client.fetch_time_series(symbol=symbol)
+        resolved_symbol, payload = self.client.fetch_time_series_with_fallback(symbol=symbol)
+
+        values = payload.get("values", [])
+        if not values:
+            return {"symbol": symbol, "status": "no_data"}
+
+        count = CandleStore.upsert_time_series(
+            db=db,
+            #symbol=symbol,
+            symbol=resolved_symbol,
+            timeframe=settings.twelvedata_interval,
+            values=values,
+        )
+
+        return {
+            "symbol": symbol,
+            "status": "ok",
+            "candles_processed": count,
+        }
+
+    def run_once(self) -> list[dict]:
+        db = SessionLocal()
+        try:
+            results = []
+            for symbol in settings.watchlist:
+                try:
+                    result = self.fetch_and_store_symbol(db, symbol)
+                except Exception as e:
+                    result = {"symbol": symbol, "status": "error", "error": str(e)}
+                results.append(result)
+            return results
+        finally:
+            db.close()
+
+    def run_forever(self) -> None:
+        while True:
+            results = self.run_once()
+            print(results, flush=True)
+            time.sleep(settings.market_poll_seconds)

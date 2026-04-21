@@ -1,0 +1,51 @@
+from sqlalchemy import select
+
+from app.db.models import Candle
+from app.services.market.feature_engine import FeatureEngine
+from app.services.patterns.breakout_20d import Breakout20DPattern
+from app.services.recommendations.signal_service import SignalService
+
+
+class PatternRunner:
+
+    def __init__(self):
+
+        self.pattern = Breakout20DPattern()
+
+    def run_for_symbol(self, db, symbol):
+
+        stmt = (
+            select(Candle)
+            .where(Candle.symbol == symbol)
+            .order_by(Candle.ts.desc())
+            .limit(25)
+        )
+
+        candles = list(db.execute(stmt).scalars().all())
+
+        if len(candles) < 21:
+            return {"symbol": symbol, "status": "not_enough_data"}
+
+        features = FeatureEngine.compute_breakout_features(candles)
+
+        result = self.pattern.evaluate(symbol, features)
+
+        if result["triggered"]:
+
+            signal = SignalService.create_signal_from_pattern(
+                db,
+                symbol,
+                result,
+                features
+            )
+
+            return {
+                "symbol": symbol,
+                "status": "triggered",
+                "signal_id": signal.id
+            }
+
+        return {
+            "symbol": symbol,
+            "status": "no_trigger"
+        }

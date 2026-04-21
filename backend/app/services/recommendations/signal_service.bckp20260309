@@ -1,0 +1,36 @@
+from app.db.models import Signal
+from app.services.recommendations.risk_model import RiskModel
+
+
+class SignalService:
+
+    @staticmethod
+    def create_signal_from_pattern(db, symbol, pattern_result, features):
+
+        levels = RiskModel.build_trade_levels(
+            pattern_result["trigger_price"],
+            features["high_20"],
+            features["avg_range_20"]
+        )
+
+        signal = Signal(
+            symbol=symbol,
+            pattern_name=pattern_result["pattern_name"],
+            timeframe="1m",
+            trigger_price=pattern_result["trigger_price"],
+            entry_low=levels["entry_low"],
+            entry_high=levels["entry_high"],
+            stop_price=levels["stop_price"],
+            target_1=levels["target_1"],
+            target_2=levels["target_2"],
+            confidence=pattern_result["confidence"],
+            signal_state="new"
+        )
+
+        db.add(signal)
+
+        db.commit()
+
+        db.refresh(signal)
+
+        return signal

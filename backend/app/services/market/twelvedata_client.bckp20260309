@@ -1,0 +1,40 @@
+from __future__ import annotations
+
+from typing import Any
+import httpx
+
+from app.core.config import settings
+
+
+class TwelveDataClient:
+    BASE_URL = "https://api.twelvedata.com"
+
+    def __init__(self) -> None:
+        self.api_key = settings.twelvedata_api_key
+
+    def fetch_time_series(
+        self,
+        symbol: str,
+        interval: str | None = None,
+        outputsize: int | None = None,
+    ) -> dict[str, Any]:
+        params = {
+            "symbol": symbol,
+            "interval": interval or settings.twelvedata_interval,
+            "outputsize": outputsize or settings.twelvedata_outputsize,
+            "apikey": self.api_key,
+            "format": "JSON",
+        }
+
+        response = httpx.get(
+            f"{self.BASE_URL}/time_series",
+            params=params,
+            timeout=20.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        if "status" in data and data["status"] == "error":
+            raise ValueError(f"TwelveData error for {symbol}: {data}")
+
+        return data

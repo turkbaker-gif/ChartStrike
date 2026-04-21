@@ -1,0 +1,53 @@
+from __future__ import annotations
+
+from datetime import datetime
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.db.models import Candle
+
+
+class CandleStore:
+    @staticmethod
+    def upsert_time_series(
+        db: Session,
+        symbol: str,
+        timeframe: str,
+        values: list[dict],
+    ) -> int:
+        inserted_or_updated = 0
+
+        for row in values:
+            ts = datetime.fromisoformat(row["datetime"])
+
+            stmt = select(Candle).where(
+                Candle.symbol == symbol,
+                Candle.timeframe == timeframe,
+                Candle.ts == ts,
+            )
+            existing = db.execute(stmt).scalar_one_or_none()
+
+            if existing:
+                existing.open = float(row["open"])
+                existing.high = float(row["high"])
+                existing.low = float(row["low"])
+                existing.close = float(row["close"])
+                existing.volume = float(row.get("volume", 0) or 0)
+            else:
+                db.add(
+                    Candle(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        ts=ts,
+                        open=float(row["open"]),
+                        high=float(row["high"]),
+                        low=float(row["low"]),
+                        close=float(row["close"]),
+                        volume=float(row.get("volume", 0) or 0),
+                    )
+                )
+
+            inserted_or_updated += 1
+
+        db.commit()
+        return inserted_or_updated

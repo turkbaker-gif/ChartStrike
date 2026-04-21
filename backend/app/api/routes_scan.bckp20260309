@@ -1,0 +1,22 @@
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+from app.db.session import get_db
+from app.core.config import settings
+from app.services.patterns.runner import PatternRunner
+
+router = APIRouter()
+
+
+@router.post("/scan")
+def run_scan(db: Session = Depends(get_db)):
+
+    runner = PatternRunner()
+
+    results = []
+
+    for symbol in settings.watchlist:
+        result = runner.run_for_symbol(db, symbol)
+        results.append(result)
+
+    return {"results": results}

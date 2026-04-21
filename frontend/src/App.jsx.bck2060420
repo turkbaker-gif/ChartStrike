@@ -1,0 +1,944 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  getRankedSignals,
+  getFullAnalysis,
+  getCandles,
+  getTradeDashboard,
+  getAnalytics,
+  getPortfolioRisk,
+  getChecklist,
+  getCatalyst,
+  getSimulatedTradeForSignal,
+  createSimulatedTrade,
+  getQuote,
+  getIntelligence,
+  getScannerFeed,
+  getHKPreopenWatchlist,
+  getExplanation,
+} from "./api";
+import MiniChart from "./MiniChart";
+import "./styles.css";
+
+function App() {
+  const [signals, setSignals] = useState([]);
+  const [selectedSignal, setSelectedSignal] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
+  const [candles, setCandles] = useState([]);
+  const [dashboard, setDashboard] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
+  const [portfolioRisk, setPortfolioRisk] = useState(null);
+  const [checklist, setChecklist] = useState(null);
+  const [catalyst, setCatalyst] = useState(null);
+  const [intelligence, setIntelligence] = useState(null);
+  const [selectedTrade, setSelectedTrade] = useState(null);
+  const [liveQuote, setLiveQuote] = useState(null);
+  const [hkPreopenWatchlist, setHKPreopenWatchlist] = useState([]);
+  const [explanation, setExplanation] = useState(null);
+
+  const [dockTab, setDockTab] = useState("trades");
+  const [error, setError] = useState("");
+  const [creatingTrade, setCreatingTrade] = useState(false);
+  const [lastSignalsRefresh, setLastSignalsRefresh] = useState(null);
+  const [alerts, setAlerts] = useState([]);
+  const [scannerFeed, setScannerFeed] = useState([]);
+
+  const knownSignalIdsRef = useRef(new Set());
+  const initialSignalsLoadedRef = useRef(false);
+  const wsRef = useRef(null);
+
+  const accountSize = 10000;
+  const riskPercent = 1;
+  const maxPortfolioRiskPercent = 6;
+
+  useEffect(() => {
+    loadSignals();
+    loadDashboard();
+    loadAnalytics();
+    loadRisk();
+    loadScannerFeed();
+    loadHKPreopenWatchlist();
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      await loadSignals(true);
+      await loadDashboard();
+      await loadAnalytics();
+      await loadRisk();
+      await loadScannerFeed();
+      await loadHKPreopenWatchlist();
+    }, 180000);
+
+    return () => clearInterval(interval);
+  }, [selectedSignal?.id]);
+
+  useEffect(() => {
+    if (!selectedSignal?.symbol || !selectedSignal?.id) return;
+
+    refreshSelectedSignal(selectedSignal.id, true);
+
+    const interval = setInterval(async () => {
+      await refreshSelectedSignal(selectedSignal.id, true);
+      await loadDashboard();
+      await loadRisk();
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [selectedSignal?.symbol, selectedSignal?.id]);
+
+  useEffect(() => {
+    const ws = new WebSocket("ws://127.0.0.1:8000/ws/live");
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      ws.send("hello");
+      addFeedItem("WebSocket connected");
+    };
+
+    ws.onmessage = async (event) => {
+      try {
+        const message = JSON.parse(event.data);
+
+        if (message.type === "ranked_signals") {
+          const incomingSignals = message.payload || [];
+          setSignals(incomingSignals);
+          setLastSignalsRefresh(new Date());
+          addFeedItem(`Ranked signals refreshed (${incomingSignals.length})`);
+
+          const newIds = new Set(incomingSignals.map((s) => s.id));
+
+          if (!initialSignalsLoadedRef.current) {
+            knownSignalIdsRef.current = newIds;
+            initialSignalsLoadedRef.current = true;
+          } else {
+            const newSignals = incomingSignals.filter(
+              (s) => !knownSignalIdsRef.current.has(s.id)
+            );
+
+            newSignals.forEach((s) => {
+              pushAlert(`New signal detected: ${s.symbol}`);
+              addFeedItem(`New signal: ${s.symbol} (${s.pattern_name})`);
+            });
+
+            knownSignalIdsRef.current = newIds;
+          }
+        }
+
+        if (message.type === "new_signal") {
+          const s = message.payload;
+          if (s?.symbol) {
+            pushAlert(`New signal detected: ${s.symbol}`);
+            addFeedItem(`New signal: ${s.symbol} (${s.pattern_name})`);
+          }
+        }
+
+        if (message.type === "hk_preopen_watchlist") {
+          const watchlist = message.payload || [];
+          setHKPreopenWatchlist(watchlist);
+          addFeedItem(`HK preopen watchlist refreshed (${watchlist.length})`);
+        }
+
+        if (message.type === "hk_continuation_signal") {
+          const s = message.payload;
+          if (s?.symbol) {
+            addFeedItem(`HK continuation signal: ${s.symbol}`);
+            pushAlert(`HK continuation signal: ${s.symbol}`);
+          }
+        }
+
+        if (message.type === "quote_update") {
+          const quote = message.payload;
+          if (quote?.symbol && selectedSignal?.symbol === quote.symbol) {
+            setLiveQuote(quote);
+          }
+          if (quote?.symbol && quote?.price != null) {
+            addFeedItem(`Quote update: ${quote.symbol} ${quote.price}`);
+          }
+        }
+
+        if (message.type === "trade_update") {
+          const update = message.payload;
+
+          if (update?.symbol) {
+            addFeedItem(
+              `Trade update: ${update.symbol} ${update.status}${
+                update.price != null ? ` @ ${update.price}` : ""
+              }`
+            );
+          }
+
+          if (update?.symbol && selectedSignal?.symbol === update.symbol) {
+            await loadDashboard();
+            await loadRisk();
+
+            try {
+              const refreshedTrade = await getSimulatedTradeForSignal(
+                selectedSignal.id
+              );
+              setSelectedTrade(refreshedTrade);
+            } catch (err) {
+              console.error(err);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("WebSocket message error:", err);
+      }
+    };
+
+    ws.onerror = (err) => {
+      console.error("WebSocket error:", err);
+      addFeedItem("WebSocket error");
+    };
+
+    ws.onclose = () => {
+      addFeedItem("WebSocket disconnected");
+    };
+
+    const keepAlive = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send("ping");
+      }
+    }, 15000);
+
+    return () => {
+      clearInterval(keepAlive);
+      ws.close();
+    };
+  }, [selectedSignal?.id, selectedSignal?.symbol]);
+
+  function nowTime() {
+    return new Date().toLocaleTimeString();
+  }
+
+  function addFeedItem(message) {
+    const item = {
+      id: `${Date.now()}-${Math.random()}`,
+      ts: nowTime(),
+      message,
+    };
+
+    setScannerFeed((prev) => [item, ...prev].slice(0, 50));
+  }
+
+  function pushAlert(message) {
+    const id = `${Date.now()}-${Math.random()}`;
+    setAlerts((prev) => [...prev, { id, message }]);
+
+    setTimeout(() => {
+      setAlerts((prev) => prev.filter((a) => a.id !== id));
+    }, 5000);
+  }
+
+  async function loadSignals(background = false) {
+    try {
+      if (!background) {
+        setError("");
+      }
+
+      const data = await getRankedSignals();
+      setLastSignalsRefresh(new Date());
+
+      const newIdSet = new Set(data.map((s) => s.id));
+
+      if (!initialSignalsLoadedRef.current) {
+        knownSignalIdsRef.current = newIdSet;
+        initialSignalsLoadedRef.current = true;
+      } else {
+        const newSignals = data.filter(
+          (s) => !knownSignalIdsRef.current.has(s.id)
+        );
+
+        for (const signal of newSignals) {
+          pushAlert(`New signal detected: ${signal.symbol}`);
+          addFeedItem(`New signal: ${signal.symbol} (${signal.pattern_name})`);
+        }
+
+        knownSignalIdsRef.current = newIdSet;
+      }
+
+      setSignals(data);
+
+      if (!data.length) return;
+
+      if (!selectedSignal) {
+        await selectSignal(data[0].id);
+        return;
+      }
+
+      const stillExists = data.find((s) => s.id === selectedSignal.id);
+
+      if (!stillExists) {
+        await selectSignal(data[0].id);
+      }
+    } catch (err) {
+      console.error(err);
+      if (!background) {
+        setError("Failed to load ranked signals.");
+      }
+    }
+  }
+
+  async function loadScannerFeed() {
+    try {
+      const data = await getScannerFeed(50);
+      const formatted = data.map((item) => ({
+        id: item.id,
+        ts: new Date(item.created_at).toLocaleTimeString(),
+        message: item.message,
+      }));
+      setScannerFeed(formatted);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function loadHKPreopenWatchlist() {
+    try {
+      const data = await getHKPreopenWatchlist();
+      setHKPreopenWatchlist(data.watchlist || []);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function loadQuote(symbol) {
+    try {
+      const quote = await getQuote(symbol);
+      setLiveQuote(quote);
+    } catch (err) {
+      console.error(err);
+      setLiveQuote(null);
+    }
+  }
+
+  async function refreshSelectedSignal(signalId, background = false) {
+    try {
+      const [
+        fullAnalysis,
+        candlesData,
+        catalystData,
+        intelligenceData,
+        selectedTradeData,
+        checklistData,
+        explanationData,
+      ] = await Promise.all([
+        getFullAnalysis(signalId),
+        getCandles(signalId, 50),
+        getCatalyst(signalId),
+        getIntelligence(signalId),
+        getSimulatedTradeForSignal(signalId),
+        getChecklist(signalId),
+        getExplanation(signalId),
+      ]);
+
+      setSelectedSignal(fullAnalysis.signal);
+      setAnalysis(fullAnalysis);
+      setCandles(candlesData);
+      setCatalyst(catalystData);
+      setIntelligence(intelligenceData);
+      setSelectedTrade(selectedTradeData);
+      setChecklist(checklistData);
+      setExplanation(explanationData);
+
+      await loadQuote(fullAnalysis.signal.symbol);
+    } catch (err) {
+      console.error(err);
+      if (!background) {
+        setError("Failed to refresh selected signal.");
+      }
+    }
+  }
+
+  async function selectSignal(id) {
+    try {
+      setError("");
+      setChecklist(null);
+      setLiveQuote(null);
+      setIntelligence(null);
+      setExplanation(null);
+
+      await refreshSelectedSignal(id);
+      addFeedItem(`Selected signal ${id}`);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load selected signal.");
+    }
+  }
+
+  async function loadDashboard() {
+    try {
+      const data = await getTradeDashboard();
+      setDashboard(data);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function loadAnalytics() {
+    try {
+      const data = await getAnalytics();
+      setAnalytics(data);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function loadRisk() {
+    try {
+      const data = await getPortfolioRisk(
+        accountSize,
+        maxPortfolioRiskPercent
+      );
+      setPortfolioRisk(data);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handleStartSimulatedTrade() {
+    if (!selectedSignal) return;
+
+    try {
+      setCreatingTrade(true);
+      setError("");
+
+      const trade = await createSimulatedTrade(selectedSignal.id, {
+        account_size: accountSize,
+        risk_percent: riskPercent,
+        max_portfolio_risk_percent: maxPortfolioRiskPercent,
+      });
+
+      setSelectedTrade(trade);
+      addFeedItem(`Started simulated trade for ${selectedSignal.symbol}`);
+      await loadDashboard();
+      await loadAnalytics();
+      await loadRisk();
+    } catch (err) {
+      console.error(err);
+      setError(
+        err?.response?.data?.detail || "Failed to create simulated trade."
+      );
+    } finally {
+      setCreatingTrade(false);
+    }
+  }
+
+  function verdictBadgeClass(verdict) {
+    if (verdict === "ready" || verdict === "pass") return "badge success";
+    if (verdict === "wait" || verdict === "warn") return "badge warning";
+    if (verdict === "avoid" || verdict === "fail") return "badge danger";
+    if (verdict === "open") return "badge info";
+    return "badge info";
+  }
+
+  function tradeStatusClass(status) {
+    if (status === "open") return "badge info";
+    if (
+      status === "target_hit" ||
+      status === "target_1_hit" ||
+      status === "target_2_hit"
+    ) {
+      return "badge success";
+    }
+    if (status === "stopped") return "badge danger";
+    if (status === "closed") return "badge neutral";
+    return "badge info";
+  }
+
+  const liveTradePreview = useMemo(() => {
+    if (!selectedTrade || selectedTrade.status !== "open" || !liveQuote?.price) {
+      return null;
+    }
+
+    const livePrice = Number(liveQuote.price);
+    const entry = Number(selectedTrade.entry_price || 0);
+    const shares = Number(selectedTrade.position_size_shares || 0);
+    const riskAmount = Number(selectedTrade.risk_amount || 0);
+
+    if (!entry || !shares) return null;
+
+    const livePnl = (livePrice - entry) * shares;
+    const liveR = riskAmount > 0 ? livePnl / riskAmount : null;
+
+    return {
+      livePrice: Number(livePrice.toFixed(4)),
+      livePnl: Number(livePnl.toFixed(2)),
+      liveR: liveR != null ? Number(liveR.toFixed(2)) : null,
+    };
+  }, [selectedTrade, liveQuote]);
+
+  return (
+    <div>
+      <div className="header">
+        <h1>ChartStrike</h1>
+        <button
+          onClick={() => {
+            loadSignals();
+            loadDashboard();
+            loadAnalytics();
+            loadRisk();
+            loadHKPreopenWatchlist();
+            if (selectedSignal?.id) {
+              refreshSelectedSignal(selectedSignal.id, true);
+            }
+          }}
+        >
+          Refresh
+        </button>
+      </div>
+
+      {alerts.length > 0 && (
+        <div className="alert-stack">
+          {alerts.map((alert) => (
+            <div key={alert.id} className="signal-alert">
+              {alert.message}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && <div className="error">{error}</div>}
+
+      <div className="cockpit">
+        <div className="topbar">
+          <div>
+            <strong>ChartStrike Trading Cockpit</strong>
+          </div>
+
+          {portfolioRisk && (
+            <div>
+              Portfolio Heat: {portfolioRisk.current_open_risk_percent}% /{" "}
+              {portfolioRisk.max_portfolio_risk_percent}%
+            </div>
+          )}
+
+          <div>Signals: {signals.length}</div>
+
+          <div>
+            Last refresh:{" "}
+            {lastSignalsRefresh
+              ? lastSignalsRefresh.toLocaleTimeString()
+              : "—"}
+          </div>
+        </div>
+
+        <aside className="sidebar">
+          <h2>Ranked Signals</h2>
+
+          <div className="signal-list">
+            {signals.map((signal) => (
+              <button
+                key={`${signal.id}-${signal.symbol}-${signal.pattern_name}`}
+                className={`signal-card ${
+                  selectedSignal?.id === signal.id ? "active" : ""
+                }`}
+                onClick={() => selectSignal(signal.id)}
+              >
+                <div className="signal-card-top">
+                  <div className="signal-symbol">{signal.symbol}</div>
+                  <div className="signal-score">⭐ {signal.score}</div>
+                </div>
+
+                <div className="signal-pattern">{signal.pattern_name}</div>
+
+                <div className="signal-metrics">
+                  <span>M: {signal.momentum ?? "N/A"}</span>
+                  <span>RR: {signal.risk_reward ?? "N/A"}</span>
+                </div>
+
+                {signal.hk_stage && (
+                  <div className="signal-stage-row">
+                    <span className="signal-stage-badge">{signal.hk_stage}</span>
+                  </div>
+                )}
+
+                {signal.hk_boost > 0 && (
+                  <div className="signal-boost-row">
+                    <span className="signal-boost-badge">HK boost +{signal.hk_boost}</span>
+                  </div>
+                )}
+
+                <div style={{ marginTop: "6px" }}>
+                  <span className={verdictBadgeClass(signal.verdict)}>
+                    {signal.verdict}
+                  </span>
+                </div>
+
+                <div className="signal-reason">{signal.reason}</div>
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <div className="chart-area">
+          <div className="chart-container">
+            {candles.length > 0 && selectedSignal && (
+              <MiniChart candles={candles} signal={selectedSignal} />
+            )}
+          </div>
+
+          <div className="trade-row">
+            {analysis && (
+              <div className="panel">
+                <h3>Live Status</h3>
+                <p>{analysis.signal.live_status?.summary || "No status"}</p>
+              </div>
+            )}
+
+            {analysis && (
+              <div className="panel">
+                <h3>Trade Plan</h3>
+                <div className="grid">
+                  <div>Entry: {analysis.signal.entry_low}</div>
+                  <div>Stop: {analysis.signal.stop_price}</div>
+                  <div>T1: {analysis.signal.target_1}</div>
+                  <div>T2: {analysis.signal.target_2}</div>
+                </div>
+              </div>
+            )}
+
+            <div className="panel">
+              <h3>Live Quote</h3>
+              {liveQuote ? (
+                <>
+                  <div className="live-price-big">{liveQuote.price}</div>
+                  <div className="grid">
+                    <div>Open: {liveQuote.open}</div>
+                    <div>High: {liveQuote.high}</div>
+                    <div>Low: {liveQuote.low}</div>
+                    <div>Change: {liveQuote.change}</div>
+                    <div>% Change: {liveQuote.percent_change}</div>
+                    <div>Volume: {liveQuote.volume}</div>
+                  </div>
+                </>
+              ) : (
+                <p>No live quote available.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="trade-row">
+            {selectedTrade ? (
+              <div className="panel">
+                <h3>Simulation</h3>
+                <div style={{ marginBottom: "8px" }}>
+                  <span className={tradeStatusClass(selectedTrade.status)}>
+                    {selectedTrade.status}
+                  </span>
+                </div>
+
+                <div className="grid">
+                  <div>Entry: {selectedTrade.entry_price}</div>
+                  <div>Stop: {selectedTrade.stop_price}</div>
+                  <div>T1: {selectedTrade.target_1 ?? "N/A"}</div>
+                  <div>T2: {selectedTrade.target_2 ?? "N/A"}</div>
+                  <div>Shares: {selectedTrade.position_size_shares}</div>
+                  <div>Risk: {selectedTrade.risk_amount}</div>
+                  <div>Exit: {selectedTrade.exit_price ?? "N/A"}</div>
+                  <div>Outcome: {selectedTrade.outcome ?? "N/A"}</div>
+                  <div>PnL: {selectedTrade.pnl_amount ?? "N/A"}</div>
+                  <div>R: {selectedTrade.pnl_r_multiple ?? "N/A"}</div>
+                </div>
+
+                {liveTradePreview && (
+                  <div className="live-preview-box">
+                    <h4>Live PnL Preview</h4>
+                    <div className="grid">
+                      <div>Live Price: {liveTradePreview.livePrice}</div>
+                      <div>Live PnL: {liveTradePreview.livePnl}</div>
+                      <div>Live R: {liveTradePreview.liveR ?? "N/A"}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="panel">
+                <h3>Simulation</h3>
+                <p>No simulated trade exists for this signal yet.</p>
+                <button
+                  onClick={handleStartSimulatedTrade}
+                  disabled={creatingTrade}
+                >
+                  {creatingTrade ? "Starting..." : "Start Simulated Trade"}
+                </button>
+              </div>
+            )}
+
+            <div className="panel">
+              <h3>Trade Readiness</h3>
+
+              {checklist ? (
+                <>
+                  <span className={verdictBadgeClass(checklist.verdict)}>
+                    {checklist.verdict.toUpperCase()}
+                  </span>
+
+                  <ul>
+                    {checklist.checklist.map((item, index) => (
+                      <li key={index} style={{ marginBottom: "8px" }}>
+                        <span className={verdictBadgeClass(item.status)}>
+                          {item.status.toUpperCase()}
+                        </span>{" "}
+                        <strong>{item.name}</strong> — {item.message}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p>Loading checklist...</p>
+              )}
+            </div>
+
+            <div className="panel">
+              <h3>AI Verdict</h3>
+              {analysis?.ai_review ? (
+                <>
+                  <span className="badge info">{analysis.ai_review.verdict}</span>
+                  <p>{analysis.ai_review.analysis}</p>
+                </>
+              ) : (
+                <p>No AI review available.</p>
+              )}
+            </div>
+          </div>
+
+          {/* SYSTEM EXPLANATION PANEL */}
+          {explanation && (
+            <section className="panel">
+              <h2>System Explanation</h2>
+              <p>{explanation.summary}</p>
+
+              <h3>Strengths</h3>
+              <ul>
+                {explanation.strengths.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+
+              <h3>Risks</h3>
+              <ul>
+                {explanation.risks.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+
+              <h3>Invalidation</h3>
+              <ul>
+                {explanation.invalidation.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+
+              <h3>Trade Plan</h3>
+              <ul>
+                {explanation.trade_plan.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <div className="trade-row">
+            <div className="panel">
+              <h3>Signal Intelligence</h3>
+              {intelligence ? (
+                <>
+                  <div className="grid">
+                    <div>Momentum: {intelligence.momentum}</div>
+                    <div>R:R: {intelligence.risk_reward}</div>
+                    <div>Catalyst: {intelligence.catalyst}</div>
+                  </div>
+                  <p style={{ marginTop: "10px" }}>{intelligence.verdict}</p>
+                </>
+              ) : (
+                <p>Loading intelligence...</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="bottom-dock">
+          <div className="dock-tabs">
+            <button
+              className={dockTab === "trades" ? "active" : ""}
+              onClick={() => setDockTab("trades")}
+            >
+              Trades
+            </button>
+
+            <button
+              className={dockTab === "analytics" ? "active" : ""}
+              onClick={() => setDockTab("analytics")}
+            >
+              Analytics
+            </button>
+
+            <button
+              className={dockTab === "research" ? "active" : ""}
+              onClick={() => setDockTab("research")}
+            >
+              Research
+            </button>
+
+            <button
+              className={dockTab === "scanner" ? "active" : ""}
+              onClick={() => setDockTab("scanner")}
+            >
+              Scanner Feed
+            </button>
+
+            <button
+              className={dockTab === "hk_preopen" ? "active" : ""}
+              onClick={() => setDockTab("hk_preopen")}
+            >
+              HK Preopen
+            </button>
+          </div>
+
+          {dockTab === "trades" && dashboard && (
+            <div>
+              <h3>Open Trades</h3>
+              <div className="mini-trade-list">
+                {dashboard.open_trades.length === 0 ? (
+                  <p>No open trades.</p>
+                ) : (
+                  dashboard.open_trades.map((trade) => (
+                    <div key={trade.id} className="mini-trade-card">
+                      <div>
+                        <strong>{trade.symbol}</strong>
+                      </div>
+                      <div>Status: {trade.status}</div>
+                      <div>Entry: {trade.entry_price}</div>
+                      <div>Stop: {trade.stop_price}</div>
+                      <div>T1: {trade.target_1}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {dockTab === "analytics" && analytics && (
+            <div>
+              <h3>Performance</h3>
+              <div className="grid">
+                <div>Win Rate: {analytics.summary.win_rate ?? "N/A"}</div>
+                <div>Avg R: {analytics.summary.average_r ?? "N/A"}</div>
+                <div>Total PnL: {analytics.summary.total_pnl}</div>
+                <div>Took Trade: {analytics.summary.took_trade_count}</div>
+              </div>
+            </div>
+          )}
+
+          {dockTab === "research" && catalyst && (
+            <div>
+              <h3>External News + Catalyst</h3>
+
+              <div className="grid">
+                <div>
+                  <strong>Catalyst Type:</strong> {catalyst.catalyst_type}
+                </div>
+                <div>
+                  <strong>Confidence:</strong> {catalyst.confidence}
+                </div>
+                <div>
+                  <strong>Provider Symbol:</strong> {catalyst.provider_symbol}
+                </div>
+                <div>
+                  <strong>Headline Count:</strong> {catalyst.headline_count}
+                </div>
+              </div>
+
+              <p>{catalyst.summary}</p>
+
+              {catalyst.ai_interpretation && (
+                <div className="panel" style={{ marginTop: "10px" }}>
+                  <h3>AI Interpretation</h3>
+                  <p>{catalyst.ai_interpretation}</p>
+                </div>
+              )}
+
+              <div className="mini-trade-list">
+                {catalyst.headlines.length === 0 ? (
+                  <p>No recent headlines found.</p>
+                ) : (
+                  catalyst.headlines.map((item, index) => (
+                    <div key={index} className="mini-trade-card">
+                      <div>
+                        {item.url ? (
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="news-link"
+                          >
+                            <strong>{item.headline}</strong>
+                          </a>
+                        ) : (
+                          <strong>{item.headline}</strong>
+                        )}
+                      </div>
+                      <div>{item.source}</div>
+                      <div>{item.published_at}</div>
+                      {item.summary && <div>{item.summary}</div>}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {dockTab === "scanner" && (
+            <div>
+              <h3>Scanner Feed</h3>
+              <div className="scanner-feed">
+                {scannerFeed.length === 0 ? (
+                  <p>No scanner events yet.</p>
+                ) : (
+                  scannerFeed.map((item) => (
+                    <div key={item.id} className="scanner-feed-item">
+                      <span className="scanner-feed-time">{item.ts}</span>
+                      <span className="scanner-feed-message">{item.message}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {dockTab === "hk_preopen" && (
+            <div>
+              <h3>HK Preopen Watchlist</h3>
+              <div className="mini-trade-list">
+                {hkPreopenWatchlist.length === 0 ? (
+                  <p>No HK preopen candidates yet.</p>
+                ) : (
+                  hkPreopenWatchlist.map((item, index) => (
+                    <div
+                      key={`${item.symbol}-${index}`}
+                      className="mini-trade-card"
+                    >
+                      <div>
+                        <strong>{item.symbol}</strong>
+                      </div>
+                      <div>Previous Close: {item.previous_close}</div>
+                      <div>Reference Price: {item.reference_price}</div>
+                      <div>Preopen %: {item.percent_change}%</div>
+                      <div>Stage: <span className="badge info">{item.stage}</span></div>
+                      <div>Reason: {item.reason ?? "—"}</div>
+                      <div>Pullback %: {item.pullback_percent ?? "—"}</div>
+                      <div>Trigger: {item.trigger_price ?? "—"}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default App;

@@ -1,0 +1,6 @@
+# Example ignore patterns
+*.log
+*.sqlite3
+.env
+node_modules/
+__pycache__/
