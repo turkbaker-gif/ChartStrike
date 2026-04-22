@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Numeric, String, Text, Boolean, Integer, Float
+from sqlalchemy import Column, DateTime, ForeignKey, Numeric, String, Text, Boolean, Integer, Float, BigInteger
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -250,3 +250,63 @@ class Watchlist(Base):
     is_active = Column(Boolean, default=True)
     added_at = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text, nullable=True)
+
+class Stock(Base):
+    __tablename__ = "stocks"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)  # The code we use in the API, e.g., "700"
+    name: Mapped[str] = mapped_column(String, nullable=False)  # e.g., "Tencent Holdings Ltd"
+    type: Mapped[str] = mapped_column(String, nullable=False)  # "stock", "etf", "reit", etc.
+    region: Mapped[str] = mapped_column(String, nullable=False, index=True)  # e.g., "HK"
+    exchange: Mapped[str] = mapped_column(String, nullable=False)  # e.g., "HKEX"
+    currency: Mapped[str] = mapped_column(String, nullable=False)  # e.g., "HKD"
+    lot_size: Mapped[int] = mapped_column(Integer, default=1)  # Useful for position sizing later
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)  # We can enable/disable symbols
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Stock(symbol='{self.symbol}', name='{self.name}', region='{self.region}')>"
+ 
+class Index(Base):
+    __tablename__ = "indices"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True) # <-- New field
+    type: Mapped[str] = mapped_column(String, nullable=False)
+    region: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    exchange: Mapped[str] = mapped_column(String, nullable=False)
+    currency: Mapped[str] = mapped_column(String, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Index(symbol='{self.symbol}', name='{self.name}', region='{self.region}')>"
+        
+class StockInformation(Base):
+    __tablename__ = "stock_information"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    name_zh: Mapped[str | None] = mapped_column(String, nullable=True)
+    type: Mapped[str | None] = mapped_column(String, nullable=True)
+    exchange: Mapped[str | None] = mapped_column(String, nullable=True)
+    sector: Mapped[str | None] = mapped_column(String, nullable=True)
+    industry: Mapped[str | None] = mapped_column(String, nullable=True)
+    locale: Mapped[str | None] = mapped_column(String, nullable=True)
+    currency: Mapped[str | None] = mapped_column(String, nullable=True)
+    business_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    website_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    market_cap: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    shares_outstanding: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    pe_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    financial_currency: Mapped[str | None] = mapped_column(String, nullable=True)
+    high_52w: Mapped[float | None] = mapped_column(Float, nullable=True)
+    low_52w: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

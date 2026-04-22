@@ -1,0 +1,145 @@
+symbol,name,description,type,region,exchange
+000001,上證指數,Shanghai Component Index,indices,gb,Composite Index
+399001,深證成指,Shenzhen Component Index,indices,gb,Composite Index
+399006,創業板指數,ChiNext Index,indices,gb,Composite Index
+000300,滬深300指數,CSI 300 Index,indices,gb,Composite Index
+000905,中證500,CSI 500 Index,indices,gb,Composite Index
+000852,中證1000,CSI 1000 Index,indices,gb,Composite Index
+000680,科创指数,Technology Innovation Board Composite Index,indices,gb,Composite Index
+HSI,恆生指數,Hang Seng Index,indices,gb,Composite Index
+HSCEI,恆生中國企業指數,Hang Seng China Enterprises Index,indices,gb,Composite Index
+HSTECH,恆生科技指數,Hang Seng TECH Index,indices,gb,Composite Index
+HKG33,恆生指數,Hang Seng Index,indices,gb,Composite Index
+HIS,恆生期貨指數,Hang Seng Futures Index,indices,gb,Composite Index
+CHN50,富時中國A50 CFD 指數,FTSE China A50 CFD Index,indices,gb,CFD Index
+XIN9,富時中國A50指數,FTSE China A50 Index,indices,gb,Composite Index
+IXIC,美國那斯達克指數,NASDAQ Composite Index,indices,gb,Composite Index
+DJI,美國道瓊工業平均指數,Dow Jones Industrial Average Index,indices,gb,Composite Index
+SPX,美國標準普爾500指數,S&P 500 Index,indices,gb,Composite Index
+NAS100,美國100指數,US 100 CFD Index,indices,gb,CFD Index
+US30,美國道瓊工業指數,Dow Jones Industrial Average Index,indices,gb,Composite Index
+US2000,美國羅素2000指數,Russel 2000 Index,indices,gb,Composite Index
+FAANG,美國大型科技公司 (FAANG),US Big Tech (FAANG),indices,gb,Composite Index
+DXY,美國美元指數,US Dollar Index,indices,gb,Composite Index
+VIX,美國波動率 標普 500,VOLATILITY S&P 500,indices,gb,Composite Index
+ME,美國墨西哥MXX,Mexico MXX,indices,gb,Composite Index
+JPN225,日本指數,Japan CFD Index,indices,gb,CFD Index
+JP225,日經225指數,Nikkei 225 Index,indices,gb,Composite Index
+TOPIX,日本股價指數,Tokyo Stock Price Index,indices,gb,Composite Index
+JPXNIKKEI400,日經400指數,Nikkei 400 Index,indices,gb,Composite Index
+DAX,德国DAX指數,DAX Performance Index,indices,gb,Composite Index
+GER30,德國DAX30 CFD 指數,DAX Performance CFD Index,indices,gb,CFD Index
+GER40,德國 40 CFD 指數,German 40 CFD Index,indices,gb,CFD Index
+MIDDE50,德國Mid50指數,German Mid50 index,indices,gb,Composite Index
+TECDE30,德國Tech30指數 ,German Tech30 Index,indices,gb,Composite Index
+UK100,英国富時100 CFD 指數,FTSE 100 CFD Index,indices,gb,CFD Index
+UKX,英国富時100指數,FTSE 100 Index,indices,gb,Composite Index
+AUS200,澳洲S&P200 CFD 指數,S&P/ASX 200 CFD Index,indices,gb,CFD Index
+XJO,澳洲200指數,ASX 200 Index,indices,gb,Composite Index
+FRA40,法國CAC 40指數,CAC 40 Index,indices,gb,Composite Index
+JPYBASKET,日元指數,Yen Basket,indices,gb,Composite Index
+EUSTX50,欧洲STOXX50指数,Euro Stoxx 50 Index,indices,gb,Composite Index
+ESP35,伊比利亞指數 (IBEX) ,Iberian Index (IBEX),indices,gb,Composite Index
+NETH25,荷蘭 25 指數,Netherlands 25 Index,indices,gb,Composite Index
+SWI20,瑞士 20 指數,Switzerland 20 Index,indices,gb,Composite Index
+RTSI,俄羅斯RTS,Russia RTS,indices,gb,Composite Index
+BEL20,比利時BEL20,Belgium BEL20,indices,gb,Composite Index
+IT40,義大利富時MIB,Italian FTSE MIB,indices,gb,Composite Index
+SPA35,西班牙IBEX35,Spanish IBEX35,indices,gb,Composite Index
+SENSEX,孟買SENSEX,Mumbai SENSEX,indices,gb,Composite Index
+IX0001,台灣加權指數,Taiwan Weighted Index,indices,gb,Composite Index
+CHNTECH,中國科技公司 (百度、BILI NETES、IQ和WB),"Chinese Technology (BIDU, BILI NTES, IQ and WB)",indices,gb,Composite Index
+ATMX,中國大型科技公司 (ATMX),Big China Tech (ATMX),indices,gb,Composite Index
+CHNECOMM,中國電商 (阿里巴巴、京東、拼多多、 TCOM 與 TME),"Chinese Ecommerce (BABA, JD, PDD, TCOM and TME)",indices,gb,Composite Index
+AIRLINES,航空公司 (AAL、DAL、LUV、JBLU 和 UAL),"Airlines (AAL, DAL, LUV, JBLU and UAL)",indices,gb,Composite Index
+BIOTECH,生物技術 (ABBV、AMGN、BMY、GILD 和 VRTX),"Biotechnology (ABBV, AMGN, BMY, GILD and VRTX)",indices,gb,Composite Index
+CRYPTOSTOCK,加密貨幣股票 (BTBB、COIN、HUT、MARA 和 RIOT),"Cryptocurrency Stocks (BTBB, COIN, HUT, MARA and RIOT)",indices,gb,Composite Index
+EMBASKET,新興市場指數,Emerging Markets Basket,indices,gb,Composite Index
+ESPORTS,電子競技和遊戲 (AMD、MSFT、EA、NVDA 和 SONY),"Esports & Gaming (AMD, MSFT, EA, NVDA and SONY)",indices,gb,Composite Index
+TRAVEL,旅遊和酒店 (BKNG、H、HLT、MAR 和 TRIP),"Travel & Hospitality (BKNG, H, HLT, MAR and TRIP)",indices,gb,Composite Index
+URANIUM,鈾 (CCJ、DNN、NXE 和 URNM),"Uranium (CCJ, DNN, NXE and URNM)",indices,gb,Composite Index
+USAUTO,美國汽車 (F、GM、HOG、STLA 和 TSLA),"US Automative (F, GM, HOG, STLA and TSLA)",indices,gb,Composite Index
+USBANKS,美國銀行 (BAC、C、 COF、JPM 和 WFC),"US Banks (BAC, C, COF, JPM and WFC)",indices,gb,Composite Index
+USECOMM,美國電商 (AMZN、EBAY、ETSY、SHOP、W 和 WMT),"US Ecommerce (AMZN, EBAY, ETSY, SHOP, W and WMT)",indices,gb,Composite Index
+FBMKLCI,大馬綜合指數,FTSE Bursa Malaysia Index,indices,gb,Composite Index
+FBMT100,大馬100指數,FTSE Bursa Malaysia Top 100 Index,indices,gb,Composite Index
+FBM70,大馬70指數,FTSE Bursa Malaysia Top 70 Index,indices,gb,Composite Index
+SE30,瑞典30指數,Sweden 30 Index,indices,gb,Composite Index
+NOR25,挪威25指數,Norway 25 Index,indices,gb,Composite Index
+CA60,加拿大60指數,Canada 60 Index,indices,gb,Composite Index
+SA40,南非40指數,South Africa 40 Index,indices,gb,Composite Index
+KOSPI,韓國綜合股價指數,Korea Composite Stock Price Index,indices,gb,Composite Index
+KOSPI200,韓國200指數,KOSPI 200 Index,indices,gb,Composite Index
+STI,新加坡海峡时报指数,STI Index,indices,gb,Composite Index
+FSTAS,新加坡富时海峡全股指数,FTSE ST Index,indices,gb,Composite Index
+IDX80,印尼證交所 80 指數,IDC 80 Index,indices,gb,Composite Index
+JII,印尼雅加達伊斯蘭指數,Jakarta Islamic Index,indices,gb,Composite Index
+COMPOSITE,印尼證交所綜合指數,IDX Composite Index,indices,gb,Composite Index
+BVSPX,巴西指数美元期货,Bovespa CFD Index,indices,gb,CFD Index
+IBC,IBC,IBC,indices,es,
+ICC,ICC,ICC,indices,es,
+ID,ID,ID,indices,es,
+IFC,IFC,IFC,indices,es,
+IG,IG,IG,indices,es,
+IH,IH,IH,indices,es,
+IJ,IJ,IJ,indices,es,
+IK,IK,IK,indices,es,
+IM,IM,IM,indices,es,
+INDA,INDA,INDA,indices,es,
+INDA200,INDA200,INDA200,indices,es,
+INDA510,INDA510,INDA510,indices,es,
+INDAM35,INDAM35,INDAM35,indices,es,
+INDAN,INDAN,INDAN,indices,es,
+INDAS13,INDAS13,INDAS13,indices,es,
+INDAT,INDAT,INDAT,indices,es,
+INDAXL1,INDAXL1,INDAXL1,indices,es,
+INDB3L,INDB3L,INDB3L,indices,es,
+INDB3S,INDB3S,INDB3S,indices,es,
+INDB5L,INDB5L,INDB5L,indices,es,
+INDB5S,INDB5S,INDB5S,indices,es,
+INDCN,INDCN,INDCN,indices,es,
+INDCT,INDCT,INDCT,indices,es,
+INDDN,INDDN,INDDN,indices,es,
+INDDT,INDDT,INDDT,indices,es,
+INDE,INDE,INDE,indices,es,
+INDEN,INDEN,INDEN,indices,es,
+INDET,INDET,INDET,indices,es,
+INDGRO15,INDGRO15,INDGRO15,indices,es,
+INDGROAS,INDGROAS,INDGROAS,indices,es,
+INDGX,INDGX,INDGX,indices,es,
+INDI3L,INDI3L,INDI3L,indices,es,
+INDI3S,INDI3S,INDI3S,indices,es,
+INDI5L,INDI5L,INDI5L,indices,es,
+INDI5S,INDI5S,INDI5S,indices,es,
+INDIB,INDIB,INDIB,indices,es,
+INDIBW,INDIBW,INDIBW,indices,es,
+INDIC,INDIC,INDIC,indices,es,
+INDIE,INDIE,INDIE,indices,es,
+INDIPP,INDIPP,INDIPP,indices,es,
+INDIPW,INDIPW,INDIPW,indices,es,
+INDISKEW,INDISKEW,INDISKEW,indices,es,
+INDIVS,INDIVS,INDIVS,indices,es,
+INDIXA,INDIXA,INDIXA,indices,es,
+INDIXB,INDIXB,INDIXB,indices,es,
+INDIXC,INDIXC,INDIXC,indices,es,
+INDIXD,INDIXD,INDIXD,indices,es,
+INDO,INDO,INDO,indices,es,
+INDON,INDON,INDON,indices,es,
+INDOT,INDOT,INDOT,indices,es,
+INDS3L,INDS3L,INDS3L,indices,es,
+INDS3S,INDS3S,INDS3S,indices,es,
+INDS5L,INDS5L,INDS5L,indices,es,
+INDS5S,INDS5S,INDS5S,indices,es,
+INDSN,INDSN,INDSN,indices,es,
+INDST,INDST,INDST,indices,es,
+INDT3L,INDT3L,INDT3L,indices,es,
+INDT3S,INDT3S,INDT3S,indices,es,
+INDT5L,INDT5L,INDT5L,indices,es,
+INDT5S,INDT5S,INDT5S,indices,es,
+INDUX,INDUX,INDUX,indices,es,
+INDVA,INDVA,INDVA,indices,es,
+INDVB,INDVB,INDVB,indices,es,
+INDVC,INDVC,INDVC,indices,es,
+INDVD,INDVD,INDVD,indices,es,
+IP,IP,IP,indices,es,
+IUC,IUC,IUC,indices,es,

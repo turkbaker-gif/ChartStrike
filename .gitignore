@@ -1,6 +1,19 @@
-# Example ignore patterns
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Backend
+backend/.venv/
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/.env
+
+# General
 *.log
-*.sqlite3
-.env
-node_modules/
-__pycache__/
+.DS_Store
+
+# Ignore large local database file
+backend/chartstrike.db
+*.db

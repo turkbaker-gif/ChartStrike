@@ -1,34 +1,52 @@
 from sqlalchemy.orm import Session
 from app.services.market.data_service import LocalDataService
+from app.services.market.itick_client import ITickClient
 
 
 class HKPreopenScanner:
     @staticmethod
-    def scan_symbol(db: Session, symbol: str, min_percent_gain: float = 5.0) -> dict:
-        """Check if the most recent daily close shows a strong gain (>min_percent_gain%)."""
-        candles = LocalDataService.get_recent_candles(db, symbol, limit=2)
-        if len(candles) < 2:
-            return {"symbol": symbol, "qualified": False, "reason": "not_enough_data"}
+    def scan_watchlist(symbols: list[str], min_percent_gain: float = 5.0) -> list[dict]:
+        """
+        Scans a list of symbols for pre-open momentum using a SINGLE batch API call.
+        """
+        if not symbols:
+            return []
 
-        prev_close = float(candles[-2]['close'])
-        current_close = float(candles[-1]['close'])
-        if prev_close <= 0:
-            return {"symbol": symbol, "qualified": False, "reason": "invalid_prev_close"}
+        # 1. Fetch all quotes in a SINGLE batch request
+        batch_quotes = ITickClient.get_batch_quotes(symbols)
 
-        percent_change = ((current_close - prev_close) / prev_close) * 100
-        return {
-            "symbol": symbol,
-            "previous_close": round(prev_close, 4),
-            "reference_price": round(current_close, 4),
-            "percent_change": round(percent_change, 2),
-            "qualified": percent_change >= min_percent_gain,
-        }
-
-    @staticmethod
-    def scan_watchlist(db: Session, symbols: list[str], min_percent_gain: float = 5.0) -> list[dict]:
-        """Scan a list of symbols and return results for each."""
         results = []
         for symbol in symbols:
-            result = HKPreopenScanner.scan_symbol(db, symbol, min_percent_gain)
-            results.append(result)
+            quote = batch_quotes.get(symbol)
+
+            # Default result if quote is missing or invalid
+            if not quote:
+                results.append({
+                    "symbol": symbol,
+                    "qualified": False,
+                    "reason": "no_quote",
+                })
+                continue
+
+            previous_close = float(quote.get("previous_close") or 0)
+            current_price = float(quote.get("price") or 0)
+
+            if previous_close <= 0 or current_price <= 0:
+                results.append({
+                    "symbol": symbol,
+                    "qualified": False,
+                    "reason": "invalid_price_data",
+                })
+                continue
+
+            percent_change = ((current_price - previous_close) / previous_close) * 100
+
+            results.append({
+                "symbol": symbol,
+                "previous_close": previous_close,
+                "reference_price": current_price,
+                "percent_change": round(percent_change, 2),
+                "qualified": percent_change >= min_percent_gain,
+            })
+
         return results
